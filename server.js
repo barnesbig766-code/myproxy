@@ -3,100 +3,199 @@ const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Configure permitted website domains in Render's
-// ALLOWED_HOSTS environment variable.
-const allowedHosts = (
-  process.env.ALLOWED_HOSTS || ""
-)
-  .split(",")
-  .map(host => host.trim().toLowerCase())
-  .filter(Boolean);
+const allowedHost = "coolmathgames.com";
 
 app.get("/", (req, res) => {
   res.send(`
-    <h1>My Proxy Server</h1>
-    <p>Your proxy backend is running!</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyProxy</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #090d18;
+  color: white;
+  font-family: Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.container {
+  width: 90%;
+  max-width: 650px;
+  text-align: center;
+}
+
+.logo {
+  font-size: 48px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.logo span {
+  color: #6c8cff;
+}
+
+.subtitle {
+  color: #9ba8c7;
+  margin-bottom: 35px;
+}
+
+.search-box {
+  display: flex;
+  background: #151d30;
+  padding: 8px;
+  border: 1px solid #293653;
+  border-radius: 15px;
+  gap: 8px;
+}
+
+input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: white;
+  padding: 14px;
+  font-size: 16px;
+}
+
+button {
+  background: #6c8cff;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #5275f5;
+}
+
+.info {
+  margin-top: 25px;
+  color: #7886a5;
+  font-size: 13px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="logo">
+    My<span>Proxy</span>
+  </div>
+
+  <div class="subtitle">
+    Your little gateway to the web.
+  </div>
+
+  <form
+    class="search-box"
+    action="/api/fetch"
+    method="GET"
+    target="_blank"
+  >
+
+    <input
+      type="url"
+      name="url"
+      placeholder="https://www.coolmathgames.com/"
+      required
+    >
+
+    <button type="submit">
+      Browse
+    </button>
+
+  </form>
+
+  <div class="info">
+    Currently supports Coolmath Games URLs.
+  </div>
+
+</div>
+
+</body>
+</html>
   `);
 });
 
 app.get("/api/fetch", async (req, res) => {
   try {
-    const rawUrl = req.query.url;
-
-    if (!rawUrl) {
-      return res.status(400).json({
-        error: "Please provide a URL."
-      });
+    if (!req.query.url) {
+      return res.status(400).send("Enter a URL.");
     }
 
-    let target;
-
-    try {
-      target = new URL(rawUrl);
-    } catch {
-      return res.status(400).json({
-        error: "Invalid URL."
-      });
-    }
+    const target = new URL(req.query.url);
 
     if (target.protocol !== "https:") {
-      return res.status(400).json({
-        error: "Only HTTPS URLs are supported."
-      });
+      return res.status(400).send("HTTPS only.");
     }
 
-    const hostname = target.hostname.toLowerCase();
+    const host = target.hostname.toLowerCase();
 
-    if (!allowedHosts.some(host =>
-      hostname === host ||
-      hostname.endsWith("." + host)
-    )) {
-      return res.status(403).json({
-        error: "This domain is not permitted."
-      });
+    if (
+      host !== allowedHost &&
+      !host.endsWith("." + allowedHost)
+    ) {
+      return res.status(403).send(
+        "Only Coolmath Games is allowed."
+      );
     }
 
     const response = await fetch(target.href, {
       redirect: "manual",
-      signal: AbortSignal.timeout(10000),
-      headers: {
-        "User-Agent": "MyProxy/1.0"
-      }
+      signal: AbortSignal.timeout(15000)
     });
 
-    // Don't follow redirects to unapproved destinations.
-    if (response.status >= 300 &&
-        response.status < 400) {
-      return res.status(502).json({
-        error: "Redirects are not supported."
-      });
+    if (
+      response.status >= 300 &&
+      response.status < 400
+    ) {
+      return res.status(502).send(
+        "This page redirected. Try the main website."
+      );
     }
 
     const contentType =
       response.headers.get("content-type") || "";
 
-    if (!contentType.includes("text/") &&
-        !contentType.includes("json") &&
-        !contentType.includes("xml")) {
-      return res.status(415).json({
-        error: "Unsupported content type."
-      });
+    if (!contentType.includes("text/html")) {
+      return res.status(415).send(
+        "This proxy currently supports HTML pages."
+      );
     }
 
-    const body = await response.text();
+    const html = await response.text();
 
-    res.status(response.status);
-    res.type(contentType);
-    res.send(body);
+    res.type("html").send(html);
 
   } catch (error) {
-    res.status(500).json({
-      error: "Could not fetch the requested page."
-    });
+    res.status(500).send(
+      "Could not load this page."
+    );
   }
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Proxy running on port ${PORT}`);
+  console.log("MyProxy is running!");
 });
 
